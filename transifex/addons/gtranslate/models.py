@@ -31,6 +31,16 @@ class Gtranslate(models.Model):
         help_text=_("The API key for the auto-translate service.")
     )
 
+    client_id = models.CharField(
+        max_length=255, verbose_name=_("Client Id"), blank=True,
+        help_text=_("The Client Id for the auto-translate service.")
+    )
+
+    client_secret = models.CharField(
+        max_length=255, verbose_name=("Client Secret"), blank=True,
+        help_text=_("The Client Secret for the auto-translate service.")
+    )
+
     service_type = models.CharField(
         max_length=2, verbose_name=_("Service"),
         choices=available_services, blank=True,
@@ -52,6 +62,19 @@ class Gtranslate(models.Model):
     def get_translate_url(self):
         return self.service_translate_urls.get(self.service_type, None)
 
+    def get_access_token(self):
+        """
+        """
+        params = {
+            'client_id': self.client_id,
+            'client_secret': self.client_secret,
+            'scope': 'http://api.microsofttranslator.com',
+            'grant_type': 'client_credentials'
+        }
+
+        r = requests.post('https://datamarket.accesscontrol.windows.net/v2/OAuth2-13', params)
+        return r.json
+
     def languages(self, target_lang=None):
         """Request to check if the given target language code is
         supported by the corresponding translation API.
@@ -62,8 +85,10 @@ class Gtranslate(models.Model):
                 'target': target_lang,
             }
         elif self.service_type == 'BT':
+            json = self.get_access_token()
+            access_token = json['access_token']
             params = {
-                'appId': self.api_key,
+                'appId': 'Bearer' + ' ' + access_token,
             }
         r = requests.get(self.get_language_url(), params=params)
         return r.content
@@ -80,8 +105,10 @@ class Gtranslate(models.Model):
                 'target': target,
             }
         elif self.service_type == 'BT':
+            json = self.get_access_token()
+            access_token = json['access_token']
             params = {
-                'appId': self.api_key,
+                'appId': 'Bearer' + ' '  + access_token,
                 'texts': '["' + term + '"]',
                 'from': source,
                 'to': target,

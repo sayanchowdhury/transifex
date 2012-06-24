@@ -45,13 +45,29 @@ def add_auto_translate_field(sender, **kwargs):
             "your API key for the service, too."
         )
     )
-    form.fields['auto_translate_api_key'] = forms.CharField(
-        max_length=255, required=False, label=_("Auto Translate API Key"),
-        initial=api_key, help_text=_(
-            "Enter the API key that Transifex will use for the auto-translate "
-            "service you have chosen."
+    if choice == 'GT':
+        form.fields['auto_translate_api_key'] = forms.CharField(
+            max_length=255, required=False, label=_("Auto Translate API Key"),
+            initial=api_key, help_text=_(
+                "Enter the API key that Transifex will use for the auto-translate "
+                "service you have chosen."
+            )
         )
-    )
+    elif choice == 'BT':
+        form.fields['auto_translate_client_id'] = forms.CharField(
+            max_length=255, required=False, label=_("Auto Translate Client Id"),
+            initial=api_key, help_text=_(
+                "Enter the Client Id that Transifex will use for the auto-translate "
+                "service you have chosen."
+            )
+        )
+        form.fields['auto_translate_client_secret'] = forms.CharField(
+            max_length=255, required=False, label=_("Auto Translate Client Secret"),
+            initial=api_key, help_text=_(
+                "Enter the Client Secret that Transifex will use for the auto-translate "
+                "service you have chosen."
+            )
+        )
 
     old_clean = getattr(form, "clean", None)
     def new_clean():

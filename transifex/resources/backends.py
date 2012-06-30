@@ -229,7 +229,7 @@ def content_from_uploaded_file(files, encoding='UTF-8'):
 
 
 def filename_of_uploaded_file(files):
-    """Get the filename of he uploaded file."""
+    """Get the filename of the uploaded file."""
     files = files.values()
     if not files:
         return None

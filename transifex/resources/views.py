@@ -16,6 +16,7 @@ from django.utils import simplejson
 from django.utils.encoding import smart_unicode
 from django.utils.translation import ugettext as _
 from django.forms.util import ErrorList
+from django.core.servers.basehttp import FileWrapper
 
 from authority.views import permission_denied
 
@@ -39,6 +40,9 @@ from transifex.resources.backends import FormatsBackend, FormatsBackendError, \
 from autofetch.forms import URLInfoForm
 from autofetch.models import URLInfo
 from .tasks import send_notices_for_resource_edited
+
+import StringIO
+import tarfile
 
 Lock = get_model('locks', 'Lock')
 
@@ -455,6 +459,62 @@ def get_translation_file(request, project_slug, resource_slug, lang_code,
     response['Content-Disposition'] = ('attachment; filename=%s' % _filename)
     return response
 
+
+# Restrict access only for private projects
+# DONT allow anonymous access
+@login_required
+@one_perm_required_or_403(pr_project_private_perm,
+    (Project, 'slug__exact', 'project_slug'))
+def get_tar_translation_file(request, project_slug, resource_slug, lang_code,
+    **kwargs):
+    """
+    View to export all translations of a resource for the requested language
+    and give the translation file back to the user.
+    """
+    resource = get_object_or_404(Resource, project__slug = project_slug,
+        slug = resource_slug)
+
+    language_list = resource.available_languages
+
+    tar_filename = "%(proj)s_%(res)s.tar.gz" % {
+        'proj': smart_unicode(resource.project.slug),
+        'res': smart_unicode(resource.slug),
+    }
+
+    response = HttpResponse(mimetype='application/x-gzip')
+    response['Content-Disposition'] = ('attachment; filename=%s' % tar_filename)
+    tar = tarfile.open(fileobj=response, mode='w:gz')
+
+    for language in language_list:
+        try:
+            fb = FormatsBackend(resource, language)
+            template = fb.compile_translation(**kwargs)
+        except Exception, e:
+            messages.error(request, "Error compiling translation file.")
+            logger.error("Error compiling '%s' file for '%s': %s" % (language,
+                resource, str(e)))
+            return HttpResponseRedirect(reverse('resource_detail',
+                args=[resource.project.slug, resource.slug]),)
+
+        _filename = "%(proj)s_%(res)s_%(lang)s%(type)s" % {
+            'proj': smart_unicode(resource.project.slug),
+            'res': smart_unicode(resource.slug),
+            'lang': language.code,
+            'type': registry.file_extension_for(resource, language)
+        }
+
+        # Prefix filename with mode, case it exists
+        if kwargs.has_key('mode'):
+            _filename = "%s_" % kwargs.get('mode').label + _filename
+
+        data = StringIO.StringIO(template)
+        tarinfo = tar.tarinfo()
+        tarinfo.name = _filename
+        tarinfo.size = data.len
+        tar.addfile(tarinfo, fileobj=data)
+        data.seek(0)
+    tar.close()
+    return response
 
 # Restrict access only for private projects
 # DONT allow anonymous access
